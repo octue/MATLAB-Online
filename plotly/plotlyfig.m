@@ -14,6 +14,7 @@ classdef plotlyfig < handle
     properties (SetObservable)
         UserData;% credentials/configuration/verbose
         PlotOptions; % filename,fileopt,world_readable
+        RenderFig = true; % uses matlab figure rendering to allow use of the matlab API instead of direct creation using plotly native
     end
     
     properties (Hidden = true)
@@ -110,6 +111,9 @@ classdef plotlyfig < handle
             % initialize autoupdate key
             updatekey = false;
             
+            % initialize render_fig flag
+            obj.RenderFig = true;
+            
             % parse inputs
             switch nargin
                 
@@ -121,6 +125,10 @@ classdef plotlyfig < handle
                             fig_han = varargin{1};
                             updatekey = true;
                         end
+                    elseif ischar(varargin{1}) && strcmp(varargin{1},'-norender')
+                        obj.RenderFig = false;
+                        updatekey = false;
+                        parseinit = 2;
                     else
                         errkey = 'plotlyfigConstructor:invalidInputs';
                         error(errkey , plotlymsg(errkey));
@@ -135,6 +143,10 @@ classdef plotlyfig < handle
                             updatekey = true;
                             parseinit = 2;
                         end
+                    elseif ischar(varargin{1}) && strcmp(varargin{1},'-norender')
+                        obj.RenderFig = false;
+                        updatekey = false;
+                        parseinit = 2;
                     else
                         parseinit = 1;
                     end
@@ -191,32 +203,35 @@ classdef plotlyfig < handle
                     end
             end
             
-            % create figure/axes if empty
-            if isempty(fig_han)
-                fig_han = figure;
-                axes;
+            % Only init the figure renderer if the -norender flag is not passed
+            if obj.RenderFig
+                % create figure/axes if empty
+                if isempty(fig_han)
+                    fig_han = figure;
+                    axes;
+                end
+
+                % plotly figure default style
+                set(fig_han,'Name',obj.PlotOptions.FileName,'Color',[1 1 1],'NumberTitle','off', 'Visible', obj.PlotOptions.Visible);
+
+                % figure state
+                obj.State.Figure.Handle = fig_han;
+
+                % update
+                if updatekey
+                    obj.update;
+                end
+
+                % add figure listeners
+                addlistener(obj.State.Figure.Handle,'Visible','PostSet',@(src,event)updateFigureVisible(obj,src,event));
+                addlistener(obj.State.Figure.Handle,'Name','PostSet',@(src,event)updateFigureName(obj,src,event));
+
+                % add plot options listeners
+                addlistener(obj,'PlotOptions','PostSet',@(src,event)updatePlotOptions(obj,src,event));
+
+                % add user data listeners
+                addlistener(obj,'UserData','PostSet',@(src,event)updateUserData(obj,src,event));
             end
-            
-            % plotly figure default style
-            set(fig_han,'Name',obj.PlotOptions.FileName,'Color',[1 1 1],'NumberTitle','off', 'Visible', obj.PlotOptions.Visible);
-            
-            % figure state
-            obj.State.Figure.Handle = fig_han;
-            
-            % update
-            if updatekey
-                obj.update;
-            end
-            
-            % add figure listeners
-            addlistener(obj.State.Figure.Handle,'Visible','PostSet',@(src,event)updateFigureVisible(obj,src,event));
-            addlistener(obj.State.Figure.Handle,'Name','PostSet',@(src,event)updateFigureName(obj,src,event));
-            
-            % add plot options listeners
-            addlistener(obj,'PlotOptions','PostSet',@(src,event)updatePlotOptions(obj,src,event));
-            
-            % add user data listeners
-            addlistener(obj,'UserData','PostSet',@(src,event)updateUserData(obj,src,event));
         end
         
         %-------------------------USER METHODS----------------------------%
